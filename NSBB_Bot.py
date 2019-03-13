@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Enable logging
 import logging
 
 from telegram import LabeledPrice
-
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-# Enable logging
 import BotConfigs
 
 from functools import partial
-
 import Strings
+import json
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -48,6 +47,13 @@ def money_request(bot, update, title, description, pan, amount):
                      prices=[LabeledPrice(title, int(amount))])
 
 
+def payment_receipt(bot, update):
+    successful_payment = update.message.successful_payment
+    logger.info("SuccessfulPayment with payload: %s", successful_payment.invoice_payload)
+    invoice_payload = json.loads(successful_payment.invoice_payload)
+    update.message.reply_text(Strings.receipt_success_message.format(invoice_payload.get('traceNo')))
+
+
 def main():
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -68,6 +74,7 @@ def main():
                                                            pan=Strings.money_request_pan,
                                                            amount=5500)))
 
+    dp.add_handler(MessageHandler(filters=Filters.successful_payment, callback=payment_receipt))
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, echo))
 
