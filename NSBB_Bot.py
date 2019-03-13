@@ -4,7 +4,7 @@
 # Enable logging
 import logging
 
-from telegram import LabeledPrice
+from telegram import LabeledPrice, ReplyKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 import BotConfigs
@@ -54,6 +54,11 @@ def payment_receipt(bot, update):
     update.message.reply_text(Strings.receipt_success_message.format(invoice_payload.get('traceNo')))
 
 
+def send_template_message(bot, update, message, buttons):
+    update.message.reply_text(message,
+                              reply_markup=ReplyKeyboardMarkup(keyboard=buttons))
+
+
 def main():
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -73,6 +78,12 @@ def main():
                                                            description=Strings.money_request_description,
                                                            pan=Strings.money_request_pan,
                                                            amount=5500)))
+    dp.add_handler(CommandHandler("template_message", partial(send_template_message,
+                                                              message=Strings.template_message_title,
+                                                              buttons=[Strings.template_message_buttons])))
+
+
+
 
     dp.add_handler(MessageHandler(filters=Filters.successful_payment, callback=payment_receipt))
     # on noncommand i.e message - echo the message on Telegram
