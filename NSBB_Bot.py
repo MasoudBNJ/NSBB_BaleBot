@@ -5,11 +5,10 @@
 import logging
 
 from telegram import LabeledPrice, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, ConversationHandler, RegexHandler
 
 import BotConfigs
 
-from functools import partial
 import Strings
 import json
 
@@ -17,6 +16,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
+
+users_queue = []
+PLACE_RESERVING_STATE = 0
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -59,6 +61,25 @@ def send_template_message(bot, update, message, buttons):
                               reply_markup=ReplyKeyboardMarkup(keyboard=buttons))
 
 
+def show_main_menu(bot, update):
+    send_template_message(bot=bot,
+                          update=update,
+                          message=Strings.reserve_place_title,
+                          buttons=[Strings.reserve_place_buttons])
+    return PLACE_RESERVING_STATE
+
+
+def reserve_place(bot, update):
+    user_id = update.effective_user.id
+    if user_id in users_queue:
+        message = Strings.exist_in_queue_message.format(users_queue.index(user_id) + 1)
+    else:
+        users_queue.append(user_id)
+        message = Strings.added_to_queue_message.format(len(users_queue))
+
+    update.message.reply_text(message)
+
+
 def main():
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -70,24 +91,18 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
-    # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("money_request", partial(money_request,
-                                                           title=Strings.money_request_title,
-                                                           description=Strings.money_request_description,
-                                                           pan=Strings.money_request_pan,
-                                                           amount=5500)))
-    dp.add_handler(CommandHandler("template_message", partial(send_template_message,
-                                                              message=Strings.template_message_title,
-                                                              buttons=[Strings.template_message_buttons])))
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', show_main_menu)],
 
+        states={
+            PLACE_RESERVING_STATE: [RegexHandler(pattern='^(' + Strings.reserve_place_buttons[0] + ')$',
+                                                 callback=reserve_place)]
+        },
 
+        fallbacks=[]
+    )
 
-
-    dp.add_handler(MessageHandler(filters=Filters.successful_payment, callback=payment_receipt))
-    # on noncommand i.e message - echo the message on Telegram
-    dp.add_handler(MessageHandler(Filters.text, echo))
+    dp.add_handler(conv_handler)
 
     # log all errors
     dp.add_error_handler(error)
