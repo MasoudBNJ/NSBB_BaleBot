@@ -1,0 +1,8 @@
+# virtualenv
+venv/
+
+# idea
+.idea/
+
+# config file
+BotConfigs.py
