@@ -3,10 +3,16 @@
 
 import logging
 
+from telegram import LabeledPrice
+
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 # Enable logging
 import BotConfigs
+
+from functools import partial
+
+import Strings
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -36,6 +42,12 @@ def error(bot, update):
     logger.warning('Update "%s" caused error "%s"', update, update.message)
 
 
+def money_request(bot, update, title, description, pan, amount):
+    bot.send_invoice(chat_id=update.message.chat_id, title=title, description=description, payload="payload",
+                     provider_token=pan, start_parameter="", currency="IRR",
+                     prices=[LabeledPrice(title, int(amount))])
+
+
 def main():
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -50,6 +62,11 @@ def main():
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("money_request", partial(money_request,
+                                                           title=Strings.money_request_title,
+                                                           description=Strings.money_request_description,
+                                                           pan=Strings.money_request_pan,
+                                                           amount=5500)))
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, echo))
