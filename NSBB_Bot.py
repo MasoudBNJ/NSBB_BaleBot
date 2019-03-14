@@ -69,16 +69,30 @@ def calculate_cheat_steps(amount):
 
 
 def handle_receipt_payment(bot, update):
+    user_id = update.effective_user.id
     invoice = get_receipt_invoice(bot, update)
     update.message.reply_text(Strings.receipt_success_message.format(invoice.get('traceNo')))
     amount = int(invoice.get('amount'))
+    print("amount: {}".format(str(amount)))
     cheat_steps = calculate_cheat_steps(amount)
-    put_in_in_queue_with_cheat(cheat_steps)
+    print("cheat steps: {}".format(str(cheat_steps)))
+    new_place = put_in_queue_with_cheat(bot, user_id, cheat_steps)
+
+    message = Strings.cheater_user_new_place_in_queue_message.format(str(new_place+1))
+    message = message.replace("2ام", "بعدی")
+    send_template_message(bot, update, message, buttons=[Strings.waiting_menu_buttons])
+    return WAIT_IN_QUEUE_STATE
 
 
-def put_in_in_queue_with_cheat(cheat_steps):
-    print("STEPS: " + str(cheat_steps))
-
+def put_in_queue_with_cheat(bot, user_id, cheat_steps):
+    index_to_put = users_queue.index(user_id) - cheat_steps
+    print("index_to_put: {}".format(str(index_to_put)))
+    if index_to_put < 0:
+        index_to_put = 0
+    print("new index_to_put: {}".format(str(index_to_put)))
+    users_queue.remove(user_id)
+    users_queue.insert(index_to_put, user_id)
+    return index_to_put
 
 def send_template_message(bot, update, message, buttons):
     update.message.reply_text(message,
@@ -110,6 +124,7 @@ def reserve_place(bot, update):
         users_queue.append(user_id)
         message = Strings.added_to_queue_message.format(len(users_queue))
 
+    message = message.replace("2ام", "بعدی")
     send_template_message(bot, update, message, buttons=[Strings.waiting_menu_buttons])
     return WAIT_IN_QUEUE_STATE
 
@@ -218,13 +233,17 @@ def main():
             TURN_ARRIVED_STATE: [turn_arrived_btn1_regex_handler, turn_arrived_btn2_regex_handler],
 
             WAIT_IN_QUEUE_STATE: [RegexHandler(pattern='^(' + Strings.waiting_menu_buttons[0] + ')$',
-                                               callback=show_how_important_menu)],
+                                               callback=show_how_important_menu),
+                                  turn_arrived_btn1_regex_handler,
+                                  turn_arrived_btn2_regex_handler],
 
             HOW_IMPORTANT_STATE: [RegexHandler(pattern='^(' + Strings.how_important_menu_buttons[0] +
                                                        '|' + Strings.how_important_menu_buttons[1] +
                                                        '|' + Strings.how_important_menu_buttons[2] +
                                                        '|' + Strings.how_important_menu_buttons[3] + ')$',
-                                               callback=show_how_important_price)],
+                                               callback=show_how_important_price),
+                                  turn_arrived_btn1_regex_handler,
+                                  turn_arrived_btn2_regex_handler],
 
             INSIDE_STATE: [RegexHandler(pattern='^(' + Strings.inside_menu_buttons[0] + ')$',
                                         callback=show_finish_message)],

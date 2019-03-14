@@ -43,6 +43,10 @@ how_important_money_request_title = 'خرج داره'
 how_important_money_request_description = 'بالاخره داری تو صف می‌زنی :)'
 
 
+# After cheat
+cheater_user_new_place_in_queue_message = 'حالا شدی نفر {}ام.'
+
+
 CHEAT_AMOUNT_1 = int(1)
 CHEAT_AMOUNT_2 = int(3)
 CHEAT_AMOUNT_3 = int(5)
