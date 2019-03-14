@@ -134,7 +134,7 @@ def show_giveup_message(bot, update):
 
 def notify_other_user(bot, update):
     if len(users_queue) > 0:
-        on_other_user_turn_arrived(bot, users_queue[len(users_queue) - 1])
+        on_other_user_turn_arrived(bot, users_queue[0])
 
 
 def main():
