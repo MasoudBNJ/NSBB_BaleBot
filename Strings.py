@@ -25,3 +25,18 @@ give_up_message = 'حیف شد!'
 
 # Finish and quite message
 finish_message = 'خسته نباشید!'
+
+# Waiting state strings
+waiting_menu_buttons = ['حاجی فوریه!!']
+
+# How important
+how_important_menu_title = 'چقدر فوریه؟؟'
+how_important_menu_buttons = ['یکی جلوتر', 'سه تا جلوتر', 'پنج تا جلوتر', 'همین الان باید برم تو']
+how_important_money_request_title = 'خرج داره'
+how_important_money_request_description = 'بالاخره داری تو صف می‌زنی :)'
+
+
+CHEAT_AMOUNT_1 = int(1)
+CHEAT_AMOUNT_2 = int(3)
+CHEAT_AMOUNT_3 = int(5)
+CHEAT_AMOUNT_WOW = int(50)

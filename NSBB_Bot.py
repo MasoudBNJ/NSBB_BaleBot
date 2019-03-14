@@ -5,7 +5,7 @@
 import logging
 
 from telegram import LabeledPrice, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, ConversationHandler, RegexHandler
+from telegram.ext import Updater, CommandHandler, ConversationHandler, RegexHandler, MessageHandler, Filters
 
 import BotConfigs
 
@@ -18,7 +18,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 users_queue = []
-PLACE_RESERVING_STATE, TURN_ARRIVED_STATE, INSIDE_STATE = range(3)
+PLACE_RESERVING_STATE, TURN_ARRIVED_STATE, INSIDE_STATE, WAIT_IN_QUEUE_STATE, HOW_IMPORTANT_STATE, WAIT_FOR_RECEIPT_STATE = range(6)
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -43,17 +43,41 @@ def error(bot, update):
     logger.warning('Update "%s" caused error "%s"', update, update.message)
 
 
-def money_request(bot, update, title, description, pan, amount):
+def send_money_request(bot, update, title, description, pan, amount):
     bot.send_invoice(chat_id=update.message.chat_id, title=title, description=description, payload="payload",
                      provider_token=pan, start_parameter="", currency="IRR",
                      prices=[LabeledPrice(title, int(amount))])
 
 
-def payment_receipt(bot, update):
+def get_receipt_invoice(bot, update):
     successful_payment = update.message.successful_payment
-    logger.info("SuccessfulPayment with payload: %s", successful_payment.invoice_payload)
+    print("SuccessfulPayment with payload: %s", successful_payment.invoice_payload)
+    logger.debug("SuccessfulPayment with payload: %s", successful_payment.invoice_payload)
     invoice_payload = json.loads(successful_payment.invoice_payload)
-    update.message.reply_text(Strings.receipt_success_message.format(invoice_payload.get('traceNo')))
+    return invoice_payload
+
+
+def calculate_cheat_steps(amount):
+    if amount == Strings.CHEAT_AMOUNT_1:
+        return 1
+    elif amount == Strings.CHEAT_AMOUNT_2:
+        return 3
+    elif amount == Strings.CHEAT_AMOUNT_3:
+        return 5
+    elif amount == Strings.CHEAT_AMOUNT_WOW:
+        return len(users_queue) - 2
+
+
+def handle_receipt_payment(bot, update):
+    invoice = get_receipt_invoice(bot, update)
+    update.message.reply_text(Strings.receipt_success_message.format(invoice.get('traceNo')))
+    amount = int(invoice.get('amount'))
+    cheat_steps = calculate_cheat_steps(amount)
+    put_in_in_queue_with_cheat(cheat_steps)
+
+
+def put_in_in_queue_with_cheat(cheat_steps):
+    print("STEPS: " + str(cheat_steps))
 
 
 def send_template_message(bot, update, message, buttons):
@@ -86,8 +110,8 @@ def reserve_place(bot, update):
         users_queue.append(user_id)
         message = Strings.added_to_queue_message.format(len(users_queue))
 
-    update.message.reply_text(message)
-    return TURN_ARRIVED_STATE
+    send_template_message(bot, update, message, buttons=[Strings.waiting_menu_buttons])
+    return WAIT_IN_QUEUE_STATE
 
 
 def on_user_turn_arrived(bot, update):
@@ -137,6 +161,34 @@ def notify_other_user(bot, update):
         on_other_user_turn_arrived(bot, users_queue[0])
 
 
+def show_how_important_menu(bot, update):
+    send_template_message(bot=bot,
+                          update=update,
+                          message=Strings.how_important_menu_title,
+                          buttons=[Strings.how_important_menu_buttons])
+    return HOW_IMPORTANT_STATE
+
+
+def show_how_important_price(bot, update):
+    user_choice = update.message.text
+    amount = calculate_how_important_amount(user_choice)
+    send_money_request(bot, update, Strings.how_important_money_request_title,
+                       Strings.how_important_money_request_description,
+                       BotConfigs.receiver_pan, amount)
+    return WAIT_FOR_RECEIPT_STATE
+
+
+def calculate_how_important_amount(user_choice):
+    if user_choice == Strings.how_important_menu_buttons[0]:
+        return Strings.CHEAT_AMOUNT_1
+    elif user_choice == Strings.how_important_menu_buttons[1]:
+        return Strings.CHEAT_AMOUNT_2
+    elif user_choice == Strings.how_important_menu_buttons[2]:
+        return Strings.CHEAT_AMOUNT_3
+    elif user_choice == Strings.how_important_menu_buttons[3]:
+        return Strings.CHEAT_AMOUNT_WOW
+
+
 def main():
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
@@ -148,18 +200,36 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
+    turn_arrived_btn1_regex_handler = RegexHandler(pattern='^(' + Strings.turn_arrived_menu_buttons[0] + ')$',
+                                                   callback=show_go_inside_menu)
+
+    turn_arrived_btn2_regex_handler = RegexHandler(pattern='^(' + Strings.turn_arrived_menu_buttons[1] + ')$',
+                                                   callback=show_giveup_message)
+
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', show_main_menu)],
+        entry_points=[CommandHandler('start', show_main_menu),
+                      turn_arrived_btn1_regex_handler,
+                      turn_arrived_btn2_regex_handler],
 
         states={
             PLACE_RESERVING_STATE: [RegexHandler(pattern='^(' + Strings.reserve_place_buttons[0] + ')$',
                                                  callback=reserve_place)],
-            TURN_ARRIVED_STATE: [RegexHandler(pattern='^(' + Strings.turn_arrived_menu_buttons[0] + ')$',
-                                              callback=show_go_inside_menu),
-                                 RegexHandler(pattern='^(' + Strings.turn_arrived_menu_buttons[1] + ')$',
-                                              callback=show_giveup_message)],
+
+            TURN_ARRIVED_STATE: [turn_arrived_btn1_regex_handler, turn_arrived_btn2_regex_handler],
+
+            WAIT_IN_QUEUE_STATE: [RegexHandler(pattern='^(' + Strings.waiting_menu_buttons[0] + ')$',
+                                               callback=show_how_important_menu)],
+
+            HOW_IMPORTANT_STATE: [RegexHandler(pattern='^(' + Strings.how_important_menu_buttons[0] +
+                                                       '|' + Strings.how_important_menu_buttons[1] +
+                                                       '|' + Strings.how_important_menu_buttons[2] +
+                                                       '|' + Strings.how_important_menu_buttons[3] + ')$',
+                                               callback=show_how_important_price)],
+
             INSIDE_STATE: [RegexHandler(pattern='^(' + Strings.inside_menu_buttons[0] + ')$',
-                                        callback=show_finish_message)]
+                                        callback=show_finish_message)],
+
+            WAIT_FOR_RECEIPT_STATE: [MessageHandler(filters=Filters.successful_payment, callback=handle_receipt_payment)]
         },
 
         fallbacks=[]
